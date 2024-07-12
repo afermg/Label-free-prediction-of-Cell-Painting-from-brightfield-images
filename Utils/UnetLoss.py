@@ -4,7 +4,7 @@ from torch import nn
 class GenLoss(nn.Module):
     def __init__(self):
         super(GenLoss, self).__init__()
-        self.mae_loss = nn.L1Loss(reduce = False)
+        self.mae_loss = nn.L1Loss()
         
     def forward(self, out_images, target_images, epoch):
         image_loss = self.mae_loss(out_images, target_images)

@@ -16,15 +16,15 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 import sys
-sys.path.append('.../{your_directory}/')
+# sys.path.append('.../{your_directory}/')
 
-dataname="cell" 
+# dataname="cell" 
 ignore_index = 0 # his value won't be included in the loss calculation (output image value)- e.g. 0 is good for this data.
 gpuid=0
 
 #Unet params
 n_classes= 5    #output channels (fluorescent)
-in_channels= 3  #input channels (brightfield)
+in_channels= 5  #input channels (brightfield)
 padding= True   #should levels be padded
 depth= 6     #depth of the network 
 wf= 5           #wf (int): number of filters in the first layer is 2**wf, was 6
@@ -36,7 +36,8 @@ batch_size=20
 patch_size=256
 num_epochs = 500
 edge_weight = 1.1 
-phases = ["train","val"] 
+# phases = ["train","val"] 
+phases = ["test"] 
 validation_phases= ["val"] 
 
 #specify if we should use a GPU (cuda) or only the CPU
@@ -57,7 +58,7 @@ class Dataset(object):
         self.img_transform=img_transform
         self.mask_transform = mask_transform
         self.tables=tables.open_file(self.fname)
-        self.numpixels=self.tables.root.numpixels[:]
+        # self.numpixels=self.tables.root.numpixels[:]
         self.nitems=self.tables.root.img.shape[0]
         self.tables.close()
         
@@ -78,24 +79,33 @@ class Dataset(object):
 
 tables.file._open_files.close_all()
 
-dataset, dataset2={}
-dataLoader={}
-dataLoader2={}
-for phase in phases: #now for each of the phases, we're creating the dataloader
+# FIXME: Reuse this once data is divided in train and val split
+# dataset, dataset2={}
+# dataLoader={}
+# dataLoader2={}
+# for phase in phases: #now for each of the phases, we're creating the dataloader
+# dataset, dataset2={}
+# dataLoader={}
+# dataLoader2={}
+# for phase in phases: #now for each of the phases, we're creating the dataloader
                      #interestingly, given the batch size, i've not seen any improvements from using a num_workers>0
-    f = h5py.File(f"./{dataname}_{phase}.pytable")
-    f.close()
-    dataset[phase]=Dataset(f"./{dataname}_{phase}.pytable")
-    dataLoader[phase]=DataLoader(dataset[phase], batch_size=batch_size, 
+    # with h5py.File(f"./{dataname}_{phase}.pytable"):
+    # dataset[phase]=Dataset(f"./{dataname}_{phase}.pytable")
+    # dataLoader[phase]=DataLoader(dataset[phase], batch_size=batch_size, 
+    #                             shuffle=True, num_workers=0, pin_memory=False)
+    # tables.file._open_files.close_all()
+# with h5py.File("test.hdf") as f:
+dataset=Dataset("test.hdf")
+dataLoader=DataLoader(dataset, batch_size=batch_size, 
                                 shuffle=True, num_workers=0, pin_memory=False)
-    tables.file._open_files.close_all()
+# tables.file._open_files.close_all()
 
 optimizerG = torch.optim.Adam(Gen.parameters(),lr=.0002)
 optim = torch.optim.Adam(Gen.parameters(), 
                            lr=.0002,
                            weight_decay=0.0002)
 
-nclasses = dataset["train"].numpixels.shape[1]
+# nclasses = dataset["train"].numpixels.shape[1]
 gen_criterion = GenLoss()
 
 writer=SummaryWriter() 
@@ -103,14 +113,17 @@ best_loss_on_test = np.Infinity
 edge_weight=torch.tensor(edge_weight).to(device)
 start_time = time.time()
 
-checkpoint = torch.load(f"{dataname}_epoch_30_Unet.pth")
-start_epoch = checkpoint['epoch']
-Gen.load_state_dict(checkpoint['model_dict'])
+# FIXME use multiple times to train
+# checkpoint = torch.load(f"{dataname}_epoch_30_Unet.pth")
+# checkpoint = torch.load(f"{dataname}_epoch_30_Unet.pth")
+# start_epoch = checkpoint['epoch']
+start_epoch = 0
+# Gen.load_state_dict(checkpoint['model_dict'])
 
 #Save some variables e.g. MAE, SSIM etc
 #The blank arrays are defined in file called 'make_variable_table.py'
-SSIM_train, DICE_train, MAE_train, MSE_train, PSNR_train, LOSS_train = {}, {}, {}, {}, {}
-SSIM_val, DICE_val, MAE_val, MSE_val, PSNR_val, LOSS_val = {}, {}, {}, {}, {}
+SSIM_train, DICE_train, MAE_train, MSE_train, PSNR_train, LOSS_train = {}, {}, {}, {}, {}, {}
+SSIM_val, DICE_val, MAE_val, MSE_val, PSNR_val, LOSS_val = {}, {}, {}, {}, {}, {}
 
 def PSNR(im1, im2):
     im1 = im1.astype(np.float64) / 255
@@ -125,12 +138,14 @@ for epoch in range(start_epoch, num_epochs):
     all_loss = {key: torch.zeros(0).to(device) for key in phases}
     cmatrix = {key: np.zeros((2,2)) for key in phases}
 
-    for ii , (X, y) in enumerate(dataLoader["train"]): #for each of the batches
+    # for ii , (X, y) in enumerate(dataLoader["train"]): #for each of the batches
+    for ii , (X, y) in enumerate(dataLoader): #for each of the batches
         Gen.train()
         y = y.to(device)
         X = X.to(device)                 
         prediction = Gen(X)
         Gen.zero_grad()
+        prediction = torch.nn.functional.pad(prediction,(10,10,12,12))
         g_loss = gen_criterion(prediction, y, epoch) 
         g_loss.backward(retain_graph=True)
         prediction = Gen(X)
@@ -151,7 +166,8 @@ for epoch in range(start_epoch, num_epochs):
             'wf': wf,
             'up_mode': up_mode, 'batch_norm': batch_norm}
         
-            torch.save(state, f"{dataname}_epoch_{epoch}_Unet.pth")
+            torch.save(state, f"test_epoch_{epoch}_Unet.pth")
+            print("first round trained")
             
 #            loss_train = g_loss.cpu().detach().numpy()#np.asarray(g_np)
 #            LOSS_train = np.append(LOSS_train, loss_train)
