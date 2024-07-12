@@ -79,7 +79,7 @@ class Dataset(object):
 
 tables.file._open_files.close_all()
 
-# FIXME: Reuse this once data is divided in train and val split
+# FIXME PAULA: Reuse this once data is divided in train and val split
 # dataset, dataset2={}
 # dataLoader={}
 # dataLoader2={}
@@ -145,6 +145,7 @@ for epoch in range(start_epoch, num_epochs):
         X = X.to(device)                 
         prediction = Gen(X)
         Gen.zero_grad()
+        # We padded the prediction to match the output. It may be worth fixing later
         prediction = torch.nn.functional.pad(prediction,(10,10,12,12))
         g_loss = gen_criterion(prediction, y, epoch) 
         g_loss.backward(retain_graph=True)

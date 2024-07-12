@@ -10,12 +10,14 @@ import numpy as np
 # Read the table
 # meta_table = pl.read_csv("table.csv")
 
+# TODO PAULA: Add mechanism to sort z-stacks too
+images_path = "images"
 from pathlib import Path
 from imageio import imread
 field_names = ["img","mask"]
 pathnames = {k:[] for k in field_names}
 for key, scope_name in zip(field_names, ["araceli","phenix"]):
-    for name in Path("images").glob("*.tiff"):
+    for name in Path(images_path).glob("*.tiff"):
         if scope_name in str(name):
             pathnames[key].append(imread(name))
 
